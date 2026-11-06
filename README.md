@@ -1,7 +1,6 @@
 # Maid Booking System
 
-Backend for a home-services (maid) booking platform — Rupeek SDE-3 machine coding, Question B.
-Java 21 + Spring Boot 3. In-memory persistence behind repository interfaces.
+Backend for a home-services (maid) booking platform 
 
 ## Build & run
 
