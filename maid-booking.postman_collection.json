@@ -1,0 +1,169 @@
+{
+  "info": {
+    "name": "Maid Booking Service",
+    "description": "End-to-end flow: onboard maid -> search -> book (scheduled/instant/recurring) -> pay -> cancel.\nRun requests in folder order. IDs are auto-captured into collection variables.\nNote: the seeded/onboarded maid works Mon-Fri 08:00-18:00, so Instant booking only succeeds during those hours.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "maidId", "value": "" },
+    { "key": "bookingId", "value": "" },
+    { "key": "seriesId", "value": "" },
+    { "key": "nextMon", "value": "" },
+    { "key": "nextMonPlusWeek", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// next Monday as yyyy-MM-dd, so sample slots are always in the future",
+          "const d = new Date();",
+          "d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));",
+          "pm.collectionVariables.set('nextMon', d.toISOString().slice(0, 10));",
+          "const d2 = new Date(d); d2.setDate(d2.getDate() + 7);",
+          "pm.collectionVariables.set('nextMonPlusWeek', d2.toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Onboard Maid",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('maidId', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/maids", "host": ["{{baseUrl}}"], "path": ["maids"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Sunita\",\n  \"gender\": \"FEMALE\",\n  \"locality\": \"Koramangala\",\n  \"prices\": { \"CLEANING\": 300, \"COOKING\": 400 },\n  \"availability\": [\n    { \"day\": \"MONDAY\",    \"start\": \"08:00\", \"end\": \"18:00\" },\n    { \"day\": \"TUESDAY\",   \"start\": \"08:00\", \"end\": \"18:00\" },\n    { \"day\": \"WEDNESDAY\", \"start\": \"08:00\", \"end\": \"18:00\" },\n    { \"day\": \"THURSDAY\",  \"start\": \"08:00\", \"end\": \"18:00\" },\n    { \"day\": \"FRIDAY\",    \"start\": \"08:00\", \"end\": \"18:00\" }\n  ],\n  \"ratings\": { \"CLEANING\": 4.5, \"COOKING\": 4.0 }\n}"
+        }
+      }
+    },
+    {
+      "name": "2. Search Maids (available for slot)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/maids/search?locality=Koramangala&service=CLEANING&date={{nextMon}}&start=10:00&end=12:00&minRating=4.0&maxPrice=350&gender=FEMALE",
+          "host": ["{{baseUrl}}"],
+          "path": ["maids", "search"],
+          "query": [
+            { "key": "locality", "value": "Koramangala" },
+            { "key": "service", "value": "CLEANING" },
+            { "key": "date", "value": "{{nextMon}}" },
+            { "key": "start", "value": "10:00" },
+            { "key": "end", "value": "12:00" },
+            { "key": "minRating", "value": "4.0" },
+            { "key": "maxPrice", "value": "350" },
+            { "key": "gender", "value": "FEMALE" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "3. Book - Scheduled",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('bookingId', pm.response.json()[0].id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/bookings", "host": ["{{baseUrl}}"], "path": ["bookings"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"SCHEDULED\",\n  \"customerId\": \"cust-1\",\n  \"maidId\": \"{{maidId}}\",\n  \"serviceType\": \"CLEANING\",\n  \"date\": \"{{nextMon}}\",\n  \"start\": \"10:00\",\n  \"end\": \"12:00\"\n}"
+        }
+      }
+    },
+    {
+      "name": "4. Book - Instant (weekday 8-18 only)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/bookings", "host": ["{{baseUrl}}"], "path": ["bookings"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"INSTANT\",\n  \"customerId\": \"cust-1\",\n  \"maidId\": \"{{maidId}}\",\n  \"serviceType\": \"CLEANING\",\n  \"durationMins\": 60\n}"
+        }
+      }
+    },
+    {
+      "name": "5. Book - Recurring (Mon+Tue 9-10, 2 weeks)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('seriesId', pm.response.json()[0].seriesId);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/bookings", "host": ["{{baseUrl}}"], "path": ["bookings"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"RECURRING\",\n  \"customerId\": \"cust-1\",\n  \"maidId\": \"{{maidId}}\",\n  \"serviceType\": \"CLEANING\",\n  \"recurrence\": {\n    \"days\": [\"MONDAY\", \"TUESDAY\"],\n    \"start\": \"09:00\",\n    \"durationMins\": 60,\n    \"startDate\": \"{{nextMon}}\",\n    \"endDate\": \"{{nextMonPlusWeek}}\"\n  }\n}"
+        }
+      }
+    },
+    {
+      "name": "6. Pay for Booking (idempotent)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/payments", "host": ["{{baseUrl}}"], "path": ["payments"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"mode\": \"UPI\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "7. Cancel Booking (refund per policy)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/bookings/{{bookingId}}/cancel",
+          "host": ["{{baseUrl}}"],
+          "path": ["bookings", "{{bookingId}}", "cancel"]
+        }
+      }
+    },
+    {
+      "name": "8. Cancel Series (all future occurrences)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/series/{{seriesId}}/cancel",
+          "host": ["{{baseUrl}}"],
+          "path": ["series", "{{seriesId}}", "cancel"]
+        }
+      }
+    }
+  ]
+}
